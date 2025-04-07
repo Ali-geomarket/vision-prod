@@ -8,7 +8,7 @@ USERS = {"sg": "dri", "ps": "dri"}
 
 st.set_page_config(page_title="Vision Prod", layout="centered")
 
-# Authentification simple
+# Authentification
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if not st.session_state["authenticated"]:
@@ -31,7 +31,6 @@ def enregistrer_df(df):
     with pd.ExcelWriter(FICHIER_SUIVI, engine="openpyxl", mode='w') as writer:
         df.to_excel(writer, index=False)
 
-# Pour sécuriser les valeurs numériques
 def safe_number(val):
     try:
         return float(val)
@@ -40,6 +39,22 @@ def safe_number(val):
 
 st.title("Vision Prod – Création de commande")
 
+# Expander discret pour visualiser le fichier Excel actuel
+with st.expander("Visualiser le fichier Excel actuel"):
+    try:
+        df_viz = pd.read_excel(FICHIER_SUIVI)
+        st.dataframe(df_viz, use_container_width=True)
+        with open(FICHIER_SUIVI, "rb") as file:
+            st.download_button(
+                label="Télécharger le fichier Excel",
+                data=file,
+                file_name="Suivi_demandes_AUTOMATISATION.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+    except Exception as e:
+        st.error(f"Erreur de lecture du fichier Excel : {e}")
+
+# État de session pour modification
 if "mode_modif" not in st.session_state:
     st.session_state["mode_modif"] = False
 if "modif_index" not in st.session_state:
@@ -47,7 +62,7 @@ if "modif_index" not in st.session_state:
 
 df = charger_df()
 
-# Bouton discret "Modifier une commande"
+# Modifier une commande existante
 with st.expander("Modifier une commande"):
     commande_rech = st.text_input("Entrer le nom exact de la commande à modifier")
     if st.button("Chercher la commande"):
@@ -58,7 +73,7 @@ with st.expander("Modifier une commande"):
         else:
             st.error("Commande non trouvée.")
 
-# Pré-remplir le formulaire si modification
+# Pré-remplissage du formulaire en mode modification
 modif_data = {}
 if st.session_state["mode_modif"]:
     ligne = df.loc[st.session_state["modif_index"]]
@@ -77,33 +92,15 @@ with st.form("formulaire_commande"):
     cout_global_val = safe_number(modif_data.get("cout_global"))
     tirage_val = safe_number(modif_data.get("tirage"))
 
-    cout_ext = st.number_input(
-        "Coût de l'extension (€)",
-        min_value=0.0,
-        value=cout_ext_val if cout_ext_val is not None else 0.0,
-        step=100.0,
-        format="%.2f"
-    )
+    cout_ext = st.number_input("Coût de l'extension (€)", min_value=0.0, value=cout_ext_val if cout_ext_val is not None else 0.0, step=100.0, format="%.2f")
     if cout_ext and (cout_ext < 100 or cout_ext > 100000):
         st.warning("Coût de l'extension hors limites (100€ - 100 000€)")
 
-    cout_global = st.number_input(
-        "Coût global du projet (€)",
-        min_value=0.0,
-        value=cout_global_val if cout_global_val is not None else 0.0,
-        step=100.0,
-        format="%.2f"
-    )
+    cout_global = st.number_input("Coût global du projet (€)", min_value=0.0, value=cout_global_val if cout_global_val is not None else 0.0, step=100.0, format="%.2f")
     if cout_global and (cout_global < 100 or cout_global > 100000):
         st.warning("Coût global hors limites (100€ - 100 000€)")
 
-    tirage = st.number_input(
-        "Tirage total (ml)",
-        min_value=0.0,
-        value=tirage_val if tirage_val is not None else 0.0,
-        step=100.0,
-        format="%.2f"
-    )
+    tirage = st.number_input("Tirage total (ml)", min_value=0.0, value=tirage_val if tirage_val is not None else 0.0, step=100.0, format="%.2f")
     if tirage and tirage > 50000:
         st.warning("Tirage supérieur à 50 000 ml")
 
@@ -111,7 +108,6 @@ with st.form("formulaire_commande"):
     fichier_bpe = st.file_uploader("Fichier BPE à poser (KMZ/KML/SHP)", type=["kmz", "kml", "shp"])
 
     commande = modif_data.get("commande") or f"CMD_X_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-
     submit = st.form_submit_button("Modifier la commande" if st.session_state["mode_modif"] else "Envoyer")
 
 if submit:
@@ -147,14 +143,17 @@ if submit:
             st.session_state["mode_modif"] = False
             st.session_state["modif_index"] = None
             st.rerun()
-    else:
-        df = pd.concat([df, pd.DataFrame([nouvelle_ligne])], ignore_index=True)
-        st.success("Commande ajoutée avec succès.")
+        enregistrer_df(df)
         st.dataframe(pd.DataFrame([nouvelle_ligne]))
-        if st.button("Nouvelle commande"):
-            st.rerun()
+    else:
+        st.success("Commande ajoutée avec succès.")
+        edited_row = st.data_editor(pd.DataFrame([nouvelle_ligne]), num_rows="fixed", use_container_width=True)
 
-    enregistrer_df(df)
+        if st.button("Valider l'enregistrement"):
+            df = pd.concat([df, edited_row], ignore_index=True)
+            enregistrer_df(df)
+            st.success("Ligne enregistrée avec les modifications.")
+            if st.button("Nouvelle commande"):
+                st.rerun()
 
     st.button("Regénérer MA (à venir)")
-
