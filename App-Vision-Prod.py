@@ -39,7 +39,7 @@ def safe_number(val):
 
 st.title("Vision Prod – Création de commande")
 
-# Visualisation du fichier Excel
+# Visualisation Excel
 with st.expander("Visualiser le fichier Excel actuel"):
     try:
         df_viz = pd.read_excel(FICHIER_SUIVI)
@@ -64,7 +64,7 @@ if "ligne_temporaire" not in st.session_state:
 
 df = charger_df()
 
-# Modifier une commande existante
+# Recherche de commande à modifier
 with st.expander("Modifier une commande"):
     commande_rech = st.text_input("Entrer le nom exact de la commande à modifier")
     if st.button("Chercher la commande"):
@@ -75,7 +75,7 @@ with st.expander("Modifier une commande"):
         else:
             st.error("Commande non trouvée.")
 
-# Pré-remplissage du formulaire
+# Pré-remplissage si modification
 modif_data = {}
 if st.session_state["mode_modif"]:
     ligne = df.loc[st.session_state["modif_index"]]
@@ -87,6 +87,7 @@ if st.session_state["mode_modif"]:
         "commande": ligne.get("COMMANDE", "")
     }
 
+# FORMULAIRE
 with st.form("formulaire_commande"):
     st.subheader("Formulaire de saisie")
 
@@ -112,20 +113,23 @@ with st.form("formulaire_commande"):
 
     submit = st.form_submit_button("Modifier la commande" if st.session_state["mode_modif"] else "Envoyer")
 
-    # Bouton "Annuler la modification"
-    if st.session_state["mode_modif"]:
-        if st.button("Annuler la modification"):
-            st.session_state["mode_modif"] = False
-            st.session_state["modif_index"] = None
-            st.rerun()
+# Bouton annulable EN DEHORS DU FORM
+if st.session_state["mode_modif"]:
+    if st.button("Annuler la modification"):
+        st.session_state["mode_modif"] = False
+        st.session_state["modif_index"] = None
+        st.rerun()
 
-# Traitement après envoi
+# Traitement après submit
 if submit:
     if not fichier_bpe:
         st.error("Le fichier BPE est obligatoire.")
         st.stop()
 
     nouvelle_ligne = {
+        "DATE RECEPTION": datetime.today().strftime("%d/%m/%Y"),
+        "RESEAU": reseau,
+        "RESPONSABLE PROD": "",
         "COMMERCIAL": "",
         "PROJET": "",
         "TYPE DE DEMANDE": "",
@@ -135,15 +139,14 @@ if submit:
         "TIRAGE TOTAL": tirage,
         "GAIN DRI": "",
         "ROI": "",
-        "CLIENTS AMORTISSEMENT": "",
+        "NB CLIENTS AMORTISSEMENT": "",
         "COMMANDE": commande,
         "DATE TRAITEMENT": datetime.today().strftime("%d/%m/%Y"),
         "DELAI TRAITEMENT": "",
         "ETAT GEOMARKETING": "",
         "RESP GEOMARKET": "",
         "CONCLUSION": "",
-        "COMMENTAIRE": "",
-        "RESEAU": reseau
+        "COMMENTAIRE": ""
     }
 
     if st.session_state["mode_modif"]:
@@ -160,7 +163,7 @@ if submit:
         st.success("Commande ajoutée avec succès.")
         st.rerun()
 
-# Ligne temporaire à valider
+# Affichage / validation ligne temporaire
 if st.session_state["ligne_temporaire"] is not None:
     st.subheader("Ligne à valider")
     edited_row = st.data_editor(
