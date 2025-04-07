@@ -37,9 +37,16 @@ def safe_number(val):
     except:
         return None
 
+colonnes_excel = [
+    "DATE RECEPTION", "RESEAU", "RESPONSABLE PROD", "COMMERCIAL", "PROJET", "TYPE DE DEMANDE",
+    "COUT EXTENSION", "COUT GLOBAL PROJET", "OPERATEUR", "TIRAGE TOTAL",
+    "GAIN DRI", "ROI", "NB CLIENTS AMORTISSEMENT", "COMMANDE", "DATE TRAITEMENT",
+    "DELAI TRAITEMENT", "ETAT GEOMARKETING", "RESP GEOMARKET", "CONCLUSION", "COMMENTAIRE"
+]
+
 st.title("Vision Prod – Création de commande")
 
-# Visualisation Excel
+# Visualisation fichier Excel
 with st.expander("Visualiser le fichier Excel actuel"):
     try:
         df_viz = pd.read_excel(FICHIER_SUIVI)
@@ -64,7 +71,7 @@ if "ligne_temporaire" not in st.session_state:
 
 df = charger_df()
 
-# Recherche de commande à modifier
+# Recherche de commande
 with st.expander("Modifier une commande"):
     commande_rech = st.text_input("Entrer le nom exact de la commande à modifier")
     if st.button("Chercher la commande"):
@@ -75,7 +82,7 @@ with st.expander("Modifier une commande"):
         else:
             st.error("Commande non trouvée.")
 
-# Pré-remplissage si modification
+# Pré-remplissage en mode modif
 modif_data = {}
 if st.session_state["mode_modif"]:
     ligne = df.loc[st.session_state["modif_index"]]
@@ -113,14 +120,14 @@ with st.form("formulaire_commande"):
 
     submit = st.form_submit_button("Modifier la commande" if st.session_state["mode_modif"] else "Envoyer")
 
-# Bouton annulable EN DEHORS DU FORM
+# BOUTON Annuler (hors formulaire)
 if st.session_state["mode_modif"]:
     if st.button("Annuler la modification"):
         st.session_state["mode_modif"] = False
         st.session_state["modif_index"] = None
         st.rerun()
 
-# Traitement après submit
+# ACTION après submit
 if submit:
     if not fichier_bpe:
         st.error("Le fichier BPE est obligatoire.")
@@ -163,11 +170,12 @@ if submit:
         st.success("Commande ajoutée avec succès.")
         st.rerun()
 
-# Affichage / validation ligne temporaire
+# Validation ligne temporaire
 if st.session_state["ligne_temporaire"] is not None:
     st.subheader("Ligne à valider")
+    df_temp = pd.DataFrame([st.session_state["ligne_temporaire"]])[colonnes_excel]
     edited_row = st.data_editor(
-        pd.DataFrame([st.session_state["ligne_temporaire"]]),
+        df_temp,
         num_rows="fixed",
         use_container_width=True
     )
