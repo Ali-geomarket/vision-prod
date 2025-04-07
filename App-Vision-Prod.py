@@ -39,7 +39,7 @@ def safe_number(val):
 
 st.title("Vision Prod – Création de commande")
 
-# Expander discret pour visualiser le fichier Excel actuel
+# Visualisation du fichier Excel
 with st.expander("Visualiser le fichier Excel actuel"):
     try:
         df_viz = pd.read_excel(FICHIER_SUIVI)
@@ -54,11 +54,13 @@ with st.expander("Visualiser le fichier Excel actuel"):
     except Exception as e:
         st.error(f"Erreur de lecture du fichier Excel : {e}")
 
-# État de session pour modification
+# États de session
 if "mode_modif" not in st.session_state:
     st.session_state["mode_modif"] = False
 if "modif_index" not in st.session_state:
     st.session_state["modif_index"] = None
+if "ligne_temporaire" not in st.session_state:
+    st.session_state["ligne_temporaire"] = None
 
 df = charger_df()
 
@@ -73,7 +75,7 @@ with st.expander("Modifier une commande"):
         else:
             st.error("Commande non trouvée.")
 
-# Pré-remplissage du formulaire en mode modification
+# Pré-remplissage du formulaire
 modif_data = {}
 if st.session_state["mode_modif"]:
     ligne = df.loc[st.session_state["modif_index"]]
@@ -106,10 +108,18 @@ with st.form("formulaire_commande"):
 
     reseau = st.text_input("Réseau", value=modif_data.get("reseau", ""))
     fichier_bpe = st.file_uploader("Fichier BPE à poser (KMZ/KML/SHP)", type=["kmz", "kml", "shp"])
-
     commande = modif_data.get("commande") or f"CMD_X_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
     submit = st.form_submit_button("Modifier la commande" if st.session_state["mode_modif"] else "Envoyer")
 
+    # Bouton "Annuler la modification"
+    if st.session_state["mode_modif"]:
+        if st.button("Annuler la modification"):
+            st.session_state["mode_modif"] = False
+            st.session_state["modif_index"] = None
+            st.rerun()
+
+# Traitement après envoi
 if submit:
     if not fichier_bpe:
         st.error("Le fichier BPE est obligatoire.")
@@ -138,22 +148,33 @@ if submit:
 
     if st.session_state["mode_modif"]:
         df.loc[st.session_state["modif_index"]] = nouvelle_ligne
+        enregistrer_df(df)
         st.success("Commande modifiée avec succès.")
+        st.dataframe(pd.DataFrame([nouvelle_ligne]))
         if st.button("Retour au formulaire vierge"):
             st.session_state["mode_modif"] = False
             st.session_state["modif_index"] = None
             st.rerun()
-        enregistrer_df(df)
-        st.dataframe(pd.DataFrame([nouvelle_ligne]))
     else:
+        st.session_state["ligne_temporaire"] = nouvelle_ligne
         st.success("Commande ajoutée avec succès.")
-        edited_row = st.data_editor(pd.DataFrame([nouvelle_ligne]), num_rows="fixed", use_container_width=True)
+        st.rerun()
 
-        if st.button("Valider l'enregistrement"):
-            df = pd.concat([df, edited_row], ignore_index=True)
-            enregistrer_df(df)
-            st.success("Ligne enregistrée avec les modifications.")
-            if st.button("Nouvelle commande"):
-                st.rerun()
+# Ligne temporaire à valider
+if st.session_state["ligne_temporaire"] is not None:
+    st.subheader("Ligne à valider")
+    edited_row = st.data_editor(
+        pd.DataFrame([st.session_state["ligne_temporaire"]]),
+        num_rows="fixed",
+        use_container_width=True
+    )
 
-    st.button("Regénérer MA (à venir)")
+    if st.button("Valider l'enregistrement"):
+        df = pd.concat([df, edited_row], ignore_index=True)
+        enregistrer_df(df)
+        st.session_state["ligne_temporaire"] = None
+        st.success("Ligne enregistrée avec les modifications.")
+        if st.button("Nouvelle commande"):
+            st.rerun()
+
+st.button("Regénérer MA (à venir)")
