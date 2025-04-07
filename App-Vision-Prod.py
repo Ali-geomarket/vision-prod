@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from openpyxl import load_workbook
 from datetime import datetime
-import os
 
 FICHIER_SUIVI = "Suivi_demandes_AUTOMATISATION.xlsx"
 USERS = {"sg": "dri", "ps": "dri"}
@@ -32,6 +31,13 @@ def enregistrer_df(df):
     with pd.ExcelWriter(FICHIER_SUIVI, engine="openpyxl", mode='w') as writer:
         df.to_excel(writer, index=False)
 
+# Pour sécuriser les valeurs numériques
+def safe_number(val):
+    try:
+        return float(val)
+    except:
+        return None
+
 st.title("Vision Prod – Création de commande")
 
 if "mode_modif" not in st.session_state:
@@ -52,6 +58,7 @@ with st.expander("Modifier une commande"):
         else:
             st.error("Commande non trouvée.")
 
+# Pré-remplir le formulaire si modification
 modif_data = {}
 if st.session_state["mode_modif"]:
     ligne = df.loc[st.session_state["modif_index"]]
@@ -66,15 +73,37 @@ if st.session_state["mode_modif"]:
 with st.form("formulaire_commande"):
     st.subheader("Formulaire de saisie")
 
-    cout_ext = st.number_input("Coût de l'extension (€)", min_value=0, value=modif_data.get("cout_ext") if modif_data.get("cout_ext") is not None else None, placeholder="Ex: 5000", step=100)
+    cout_ext_val = safe_number(modif_data.get("cout_ext"))
+    cout_global_val = safe_number(modif_data.get("cout_global"))
+    tirage_val = safe_number(modif_data.get("tirage"))
+
+    cout_ext = st.number_input(
+        "Coût de l'extension (€)",
+        min_value=0.0,
+        value=cout_ext_val if cout_ext_val is not None else 0.0,
+        step=100.0,
+        format="%.2f"
+    )
     if cout_ext and (cout_ext < 100 or cout_ext > 100000):
         st.warning("Coût de l'extension hors limites (100€ - 100 000€)")
 
-    cout_global = st.number_input("Coût global du projet (€)", min_value=0, value=modif_data.get("cout_global") if modif_data.get("cout_global") is not None else None, placeholder="Ex: 10000", step=100)
+    cout_global = st.number_input(
+        "Coût global du projet (€)",
+        min_value=0.0,
+        value=cout_global_val if cout_global_val is not None else 0.0,
+        step=100.0,
+        format="%.2f"
+    )
     if cout_global and (cout_global < 100 or cout_global > 100000):
         st.warning("Coût global hors limites (100€ - 100 000€)")
 
-    tirage = st.number_input("Tirage total (ml)", min_value=0, value=modif_data.get("tirage") if modif_data.get("tirage") is not None else None, placeholder="Ex: 1200", step=100)
+    tirage = st.number_input(
+        "Tirage total (ml)",
+        min_value=0.0,
+        value=tirage_val if tirage_val is not None else 0.0,
+        step=100.0,
+        format="%.2f"
+    )
     if tirage and tirage > 50000:
         st.warning("Tirage supérieur à 50 000 ml")
 
@@ -83,7 +112,7 @@ with st.form("formulaire_commande"):
 
     commande = modif_data.get("commande") or f"CMD_X_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
-    submit = st.form_submit_button("Envoyer" if not st.session_state["mode_modif"] else "Modifier la commande")
+    submit = st.form_submit_button("Modifier la commande" if st.session_state["mode_modif"] else "Envoyer")
 
 if submit:
     if not fichier_bpe:
@@ -123,3 +152,4 @@ if submit:
     st.dataframe(pd.DataFrame([nouvelle_ligne]))
 
     st.button("Regénérer MA (à venir)")
+
