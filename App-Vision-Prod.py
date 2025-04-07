@@ -150,10 +150,11 @@ if submit:
     else:
         df = pd.concat([df, pd.DataFrame([nouvelle_ligne])], ignore_index=True)
         st.success("Commande ajoutée avec succès.")
+        st.dataframe(pd.DataFrame([nouvelle_ligne]))
         if st.button("Nouvelle commande"):
             st.rerun()
 
     enregistrer_df(df)
-    st.dataframe(pd.DataFrame([nouvelle_ligne]))
 
     st.button("Regénérer MA (à venir)")
+
