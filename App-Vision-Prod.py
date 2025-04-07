@@ -25,7 +25,6 @@ if not st.session_state["authenticated"]:
                 st.error("Identifiants incorrects")
     st.stop()
 
-# Lecture du fichier Excel
 def charger_df():
     return pd.read_excel(FICHIER_SUIVI)
 
@@ -35,7 +34,6 @@ def enregistrer_df(df):
 
 st.title("Vision Prod – Création de commande")
 
-# Initialiser le mode modification
 if "mode_modif" not in st.session_state:
     st.session_state["mode_modif"] = False
 if "modif_index" not in st.session_state:
@@ -54,31 +52,31 @@ with st.expander("Modifier une commande"):
         else:
             st.error("Commande non trouvée.")
 
-# Pré-remplir en mode modification
 modif_data = {}
 if st.session_state["mode_modif"]:
     ligne = df.loc[st.session_state["modif_index"]]
     modif_data = {
-        "cout_ext": ligne["COUT EXTENSION"],
-        "cout_global": ligne["COUT GLOBAL PROJET"],
-        "tirage": ligne["TIRAGE TOTAL"],
-        "reseau": ligne["RESEAU"],
-        "commande": ligne["COMMANDE"]
+        "cout_ext": ligne.get("COUT EXTENSION", None),
+        "cout_global": ligne.get("COUT GLOBAL PROJET", None),
+        "tirage": ligne.get("TIRAGE TOTAL", None),
+        "reseau": ligne.get("RESEAU", ""),
+        "commande": ligne.get("COMMANDE", "")
     }
 
 with st.form("formulaire_commande"):
     st.subheader("Formulaire de saisie")
-    cout_ext = st.number_input("Coût de l'extension (€)", min_value=0, value=int(modif_data.get("cout_ext", 0)))
-    if cout_ext < 100 or cout_ext > 100000:
+
+    cout_ext = st.number_input("Coût de l'extension (€)", min_value=0, value=modif_data.get("cout_ext") if modif_data.get("cout_ext") is not None else None, placeholder="Ex: 5000", step=100)
+    if cout_ext and (cout_ext < 100 or cout_ext > 100000):
         st.warning("Coût de l'extension hors limites (100€ - 100 000€)")
 
-    cout_global = st.number_input("Coût global du projet (€)", min_value=0, value=int(modif_data.get("cout_global", 0)))
-    if cout_global < 100 or cout_global > 100000:
+    cout_global = st.number_input("Coût global du projet (€)", min_value=0, value=modif_data.get("cout_global") if modif_data.get("cout_global") is not None else None, placeholder="Ex: 10000", step=100)
+    if cout_global and (cout_global < 100 or cout_global > 100000):
         st.warning("Coût global hors limites (100€ - 100 000€)")
 
-    tirage = st.number_input("Tirage total (ml)", min_value=0, value=int(modif_data.get("tirage", 0)))
-    if tirage > 50000:
-        st.warning("Tirage supérieur à 50 000ml")
+    tirage = st.number_input("Tirage total (ml)", min_value=0, value=modif_data.get("tirage") if modif_data.get("tirage") is not None else None, placeholder="Ex: 1200", step=100)
+    if tirage and tirage > 50000:
+        st.warning("Tirage supérieur à 50 000 ml")
 
     reseau = st.text_input("Réseau", value=modif_data.get("reseau", ""))
     fichier_bpe = st.file_uploader("Fichier BPE à poser (KMZ/KML/SHP)", type=["kmz", "kml", "shp"])
