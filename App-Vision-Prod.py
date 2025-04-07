@@ -143,7 +143,10 @@ if submit:
     if st.session_state["mode_modif"]:
         df.loc[st.session_state["modif_index"]] = nouvelle_ligne
         st.success("Commande modifiée avec succès.")
-        st.session_state["mode_modif"] = False
+        if st.button("Retour au formulaire vierge"):
+            st.session_state["mode_modif"] = False
+            st.session_state["modif_index"] = None
+            st.rerun()
     else:
         df = pd.concat([df, pd.DataFrame([nouvelle_ligne])], ignore_index=True)
         st.success("Commande ajoutée avec succès.")
@@ -152,4 +155,3 @@ if submit:
     st.dataframe(pd.DataFrame([nouvelle_ligne]))
 
     st.button("Regénérer MA (à venir)")
-
