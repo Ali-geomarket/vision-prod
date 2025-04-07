@@ -1,108 +1,127 @@
-
 import streamlit as st
 import pandas as pd
 from openpyxl import load_workbook
 from datetime import datetime
 import os
 
-# -------------------------------
+FICHIER_SUIVI = "Suivi_demandes_AUTOMATISATION.xlsx"
+USERS = {"sg": "dri", "ps": "dri"}
+
+st.set_page_config(page_title="Vision Prod", layout="centered")
+
 # Authentification simple
-# -------------------------------
-USERS = {
-    "sarah.gontran": "Geomarket123",
-    "pauline.solari": "Geomarket123"
-}
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if not st.session_state["authenticated"]:
+    st.title("Connexion")
+    with st.form("login_form"):
+        username = st.text_input("Nom d'utilisateur")
+        password = st.text_input("Mot de passe", type="password")
+        if st.form_submit_button("Se connecter"):
+            if USERS.get(username) == password:
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("Identifiants incorrects")
+    st.stop()
 
-RESP_MAP = {
-    "sarah.gontran": "Sarah",
-    "pauline.solari": "Pauline"
-}
+# Lecture du fichier Excel
+def charger_df():
+    return pd.read_excel(FICHIER_SUIVI)
 
-st.set_page_config(page_title="Fiche DRI", layout="centered")
-st.title("Connexion requise")
+def enregistrer_df(df):
+    with pd.ExcelWriter(FICHIER_SUIVI, engine="openpyxl", mode='w') as writer:
+        df.to_excel(writer, index=False)
 
-# Interface de connexion
-with st.form("login_form"):
-    username = st.text_input("Nom d'utilisateur")
-    password = st.text_input("Mot de passe", type="password")
-    login_button = st.form_submit_button("Se connecter")
+st.title("Vision Prod – Création de commande")
 
-if login_button:
-    if username in USERS and USERS[username] == password:
-        st.session_state["authenticated"] = True
-        st.session_state["user"] = username
-        st.experimental_rerun()
+# Initialiser le mode modification
+if "mode_modif" not in st.session_state:
+    st.session_state["mode_modif"] = False
+if "modif_index" not in st.session_state:
+    st.session_state["modif_index"] = None
+
+df = charger_df()
+
+# Bouton discret "Modifier une commande"
+with st.expander("Modifier une commande"):
+    commande_rech = st.text_input("Entrer le nom exact de la commande à modifier")
+    if st.button("Chercher la commande"):
+        match = df[df["COMMANDE"] == commande_rech]
+        if not match.empty:
+            st.session_state["mode_modif"] = True
+            st.session_state["modif_index"] = match.index[0]
+        else:
+            st.error("Commande non trouvée.")
+
+# Pré-remplir en mode modification
+modif_data = {}
+if st.session_state["mode_modif"]:
+    ligne = df.loc[st.session_state["modif_index"]]
+    modif_data = {
+        "cout_ext": ligne["COUT EXTENSION"],
+        "cout_global": ligne["COUT GLOBAL PROJET"],
+        "tirage": ligne["TIRAGE TOTAL"],
+        "reseau": ligne["RESEAU"],
+        "commande": ligne["COMMANDE"]
+    }
+
+with st.form("formulaire_commande"):
+    st.subheader("Formulaire de saisie")
+    cout_ext = st.number_input("Coût de l'extension (€)", min_value=0, value=int(modif_data.get("cout_ext", 0)))
+    if cout_ext < 100 or cout_ext > 100000:
+        st.warning("Coût de l'extension hors limites (100€ - 100 000€)")
+
+    cout_global = st.number_input("Coût global du projet (€)", min_value=0, value=int(modif_data.get("cout_global", 0)))
+    if cout_global < 100 or cout_global > 100000:
+        st.warning("Coût global hors limites (100€ - 100 000€)")
+
+    tirage = st.number_input("Tirage total (ml)", min_value=0, value=int(modif_data.get("tirage", 0)))
+    if tirage > 50000:
+        st.warning("Tirage supérieur à 50 000ml")
+
+    reseau = st.text_input("Réseau", value=modif_data.get("reseau", ""))
+    fichier_bpe = st.file_uploader("Fichier BPE à poser (KMZ/KML/SHP)", type=["kmz", "kml", "shp"])
+
+    commande = modif_data.get("commande") or f"CMD_X_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    submit = st.form_submit_button("Envoyer" if not st.session_state["mode_modif"] else "Modifier la commande")
+
+if submit:
+    if not fichier_bpe:
+        st.error("Le fichier BPE est obligatoire.")
+        st.stop()
+
+    nouvelle_ligne = {
+        "COMMERCIAL": "",
+        "PROJET": "",
+        "TYPE DE DEMANDE": "",
+        "COUT EXTENSION": cout_ext,
+        "COUT GLOBAL PROJET": cout_global,
+        "OPERATEUR": "",
+        "TIRAGE TOTAL": tirage,
+        "GAIN DRI": "",
+        "ROI": "",
+        "CLIENTS AMORTISSEMENT": "",
+        "COMMANDE": commande,
+        "DATE TRAITEMENT": datetime.today().strftime("%d/%m/%Y"),
+        "DELAI TRAITEMENT": "",
+        "ETAT GEOMARKETING": "",
+        "RESP GEOMARKET": "",
+        "CONCLUSION": "",
+        "COMMENTAIRE": "",
+        "RESEAU": reseau
+    }
+
+    if st.session_state["mode_modif"]:
+        df.loc[st.session_state["modif_index"]] = nouvelle_ligne
+        st.success("Commande modifiée avec succès.")
+        st.session_state["mode_modif"] = False
     else:
-        st.error("Identifiants incorrects. Veuillez réessayer.")
+        df = pd.concat([df, pd.DataFrame([nouvelle_ligne])], ignore_index=True)
+        st.success("Commande ajoutée avec succès.")
 
-# Si l'utilisateur est connecté, on affiche l'application
-if st.session_state.get("authenticated", False):
-    username = st.session_state.get("user")
-    resp_geomarket = RESP_MAP.get(username, "Inconnu")
+    enregistrer_df(df)
+    st.dataframe(pd.DataFrame([nouvelle_ligne]))
 
-    st.title("Ajout automatique de Fiche DRI")
-    st.markdown(f"Bonjour **{resp_geomarket}**, moi, c'est Ali, ton assistant préféré qui va t'aider à remplir le fichier de suivi des demandes des fiches DRI !")
-
-    date_traitement_str = st.date_input("Date de traitement (jj/mm/aaaa)", format="DD/MM/YYYY")
-    reseau = st.text_input("Donne-moi le Réseau :")
-    etat_geomarketing = st.text_input("Donne-moi l'état géomarketing :")
-
-    type_demande_input = st.radio("Type de demande :", ["1 - DEPASSEMENT DE COUT", "2 - DEMANDE DE MA"])
-    demande_type = "DEPASSEMENT DE COUT" if type_demande_input.startswith("1") else "DEMANDE DE MA"
-
-    fiche_dri_file = st.file_uploader("Charge le fichier Excel de la fiche DRI (.xlsx)", type="xlsx")
-
-    if fiche_dri_file and st.button("Ajouter cette fiche au fichier suivi"):
-
-        try:
-            dri_wb = load_workbook(fiche_dri_file, data_only=True)
-            dri_ws = dri_wb.active
-
-            responsable_prod = dri_ws["C7"].value
-            date_reception = dri_ws["G7"].value
-            commercial = dri_ws["D16"].value
-            projet = dri_ws["D9"].value
-            cout_extension = dri_ws["D37"].value
-            cout_global = dri_ws["D38"].value
-            operateur = dri_ws["D11"].value
-            gain_dri = dri_ws["G30"].value
-            roi = round(dri_ws["G31"].value) if dri_ws["G31"].value else ""
-            commande = dri_ws["D10"].value
-
-            date_traitement = pd.to_datetime(date_traitement_str)
-            nb_clients_amort = round((cout_global - gain_dri) / 4000, 2) if cout_global and gain_dri else ""
-            delai_traitement = (date_traitement - pd.to_datetime(date_reception)).days if date_reception else ""
-
-            # Fichier suivi
-            FICHIER_A_COMPLETER = r"\\cov.dom\ComMkg\Geomarketing\Geomarketing_New\ETUDES_DIVERSES\01_ETUDES_RECURRENTES\01. FICHE_DRI\Suivi_demandes_AUTOMATISATION.xlsx"
-            FEUILLE = "Suivi_commandes"
-
-            wb_suivi = load_workbook(FICHIER_A_COMPLETER)
-            ws_suivi = wb_suivi[FEUILLE]
-
-            new_row = [
-                date_reception.strftime("%d/%m/%Y") if date_reception else "",
-                reseau,
-                responsable_prod,
-                commercial,
-                projet,
-                demande_type,
-                cout_extension,
-                cout_global,
-                operateur,
-                gain_dri,
-                roi,
-                nb_clients_amort,
-                commande,
-                date_traitement.strftime("%d/%m/%Y"),
-                delai_traitement,
-                etat_geomarketing,
-                resp_geomarket
-            ]
-
-            ws_suivi.append(new_row)
-            wb_suivi.save(FICHIER_A_COMPLETER)
-
-            st.success("La fiche a bien été ajoutée au fichier de suivi.")
-        except Exception as e:
-            st.error(f"Une erreur est survenue : {e}")
+    st.button("Regénérer MA (à venir)")
