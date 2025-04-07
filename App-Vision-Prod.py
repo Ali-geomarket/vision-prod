@@ -150,6 +150,8 @@ if submit:
     else:
         df = pd.concat([df, pd.DataFrame([nouvelle_ligne])], ignore_index=True)
         st.success("Commande ajoutée avec succès.")
+        if st.button("Nouvelle commande"):
+            st.rerun()
 
     enregistrer_df(df)
     st.dataframe(pd.DataFrame([nouvelle_ligne]))
